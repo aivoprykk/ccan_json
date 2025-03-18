@@ -28,6 +28,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+// #define STRBF_INTERNAL
+#if !defined(STRBF_INTERNAL)
+#include <strbf.h>
+#endif
 
 #define out_of_memory() do {                    \
 		fprintf(stderr, "Out of memory.\n");    \
@@ -44,8 +48,16 @@ static char *json_strdup(const char *str)
 	return ret;
 }
 
+#if !defined(STRBF_INTERNAL)
+#define SB strbf_t
+#define sb_init strbf_init
+#define sb_put strbf_put
+#define sb_putc strbf_putc
+#define sb_puts strbf_puts
+#define sb_finish strbf_finish
+#define sb_free strbf_free
+#else
 /* String buffer */
-
 typedef struct
 {
 	char *cur;
@@ -61,13 +73,8 @@ static void sb_init(SB *sb)
 	sb->cur = sb->start;
 	sb->end = sb->start + 16;
 }
-
-/* sb and need may be evaluated multiple times. */
-#define sb_need(sb, need) do {                  \
-		if ((sb)->end - (sb)->cur < (need))     \
-			sb_grow(sb, need);                  \
-	} while (0)
-
+#endif
+#if defined(STRBF_INTERNAL)
 static void sb_grow(SB *sb, int need)
 {
 	size_t length = sb->cur - sb->start;
@@ -113,6 +120,17 @@ static void sb_free(SB *sb)
 {
 	free(sb->start);
 }
+#endif
+
+/* sb and need may be evaluated multiple times. */
+#if defined(strbf_need)
+#define sb_need(sb, need) strbf_need(sb, need)
+#elif !defined(sb_need)
+#define sb_need(sb, need) do {                  \
+		if ((sb)->end - (sb)->cur < (need))     \
+			sb_grow(sb, need);                  \
+	} while (0)
+#endif
 
 /*
  * Unicode helper functions
@@ -793,7 +811,7 @@ failure:
 bool parse_string(const char **sp, char **out)
 {
 	const char *s = *sp;
-	SB sb;
+	SB sb = {0};
 	char throwaway_buffer[4];
 		/* enough space for a UTF-8 character */
 	char *b;
